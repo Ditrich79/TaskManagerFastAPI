@@ -18,7 +18,10 @@ Base = declarative_base()
 # Зависимость FastAPI, которая будет предоставлять сессию БД для каждого запроса
 async def get_db():
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 GetAsyncSession = Annotated[AsyncSession, Depends(get_db)]
