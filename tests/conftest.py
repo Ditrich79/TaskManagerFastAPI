@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import fakeredis.aioredis
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -64,3 +65,17 @@ async def auth_headers(client: AsyncClient):
     assert response.status_code == 200
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+@pytest_asyncio.fixture(autouse=True)
+async def mock_redis(monkeypatch):
+    """Подменяет реальный Redis на фейковый для всех тестов."""
+    fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
+    
+    async def fake_get_redis():
+        return fake_redis
+
+    monkeypatch.setattr("app.utils.cache.get_redis", fake_get_redis)
+    # Также можно переопределить redis_pool, но проще заменить функцию get_redis
+    await fake_redis.flushall()
+    yield
+    await fake_redis.flushall()
