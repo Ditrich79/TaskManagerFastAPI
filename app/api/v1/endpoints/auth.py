@@ -5,6 +5,7 @@ from app.schemas.user import UserCreate, UserResponse
 from app.crud import crud_user
 from app.core.security import verify_password, create_access_token
 from typing import Annotated
+from app.tasks.email_tasks import send_email
 
 
 router = APIRouter()
@@ -20,6 +21,11 @@ async def register(user_in: UserCreate, db: GetAsyncSession):
             detail="User with this email already exists.",
         )
     user = await crud_user.create_user(db=db, user=user_in)
+    send_email.delay(
+        to_email=user.email,
+        subject="Welcome to Task Manager!",
+        body=f"Hello {user.email.split("@")[0]}, your account has been created."
+    )
     return user
 
 @router.post("/login")
