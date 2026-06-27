@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Task Manager API"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
 
     model_config = SettingsConfigDict(
         env_file=".env",

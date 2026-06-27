@@ -1,9 +1,12 @@
-from fastapi import Depends, APIRouter, HTTPException, status
+from fastapi import Depends, APIRouter, HTTPException, status, Response
 from app.utils.cache import get_redis, get_cache, set_cache, invalidate_user_tasks_cache
 from app.core.database import GetAsyncSession
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
 from app.crud import crud_task
 from app.api.v1.dependencies import GetCurrentUser
+
+from app.events.producer import publish_event
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -14,6 +17,12 @@ async def create_new_task(
     current_user: GetCurrentUser,
 ):
     task = await crud_task.create_task(db=db, task=task_in, owner_id=current_user.id)
+    await publish_event("task_events", {
+        "event": "task_created",
+        "task_id": task.id,
+        "user_id": current_user.id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
     # Сбрасываем кеш этого пользователя
     await invalidate_user_tasks_cache(current_user.id)
     return task
@@ -76,6 +85,12 @@ async def update_existing_task(
     db_task = await crud_task.update_task(db, task_id=task_id, task_in=task_in, owner_id=current_user.id)
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    await publish_event("task_events", {
+        "event": "task_updated",
+        "task_id": task_id,
+        "user_id": current_user.id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
     await invalidate_user_tasks_cache(current_user.id)
     return db_task
 
@@ -88,5 +103,11 @@ async def delete_existing_task(
     db_task = await crud_task.delete_task(db, task_id=task_id, owner_id=current_user.id)
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    await publish_event("task_events", {
+        "event": "task_deleted",
+        "task_id": task_id,
+        "user_id": current_user.id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
     await invalidate_user_tasks_cache(current_user.id)
-    return
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
